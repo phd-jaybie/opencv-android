@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merger version="3"><dataSet config="main"><source path="/Users/deg032/Projects/openCVwithSIFT/openCVLibrary331dev/src/main/assets"/><source path="/Users/deg032/Projects/openCVwithSIFT/openCVLibrary331dev/build/generated/assets/shaders/debug"/></dataSet><dataSet config="debug"><source path="/Users/deg032/Projects/openCVwithSIFT/openCVLibrary331dev/src/debug/assets"/></dataSet></merger>
