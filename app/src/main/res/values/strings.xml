@@ -24,4 +24,18 @@
     <string name="connection_error">Connection error.</string>
     <string name="fetch_cancelled">Fetch cancelled.</string>
     <string name="welcome_message">Welcome to Camera with OpenCV and Network.</string>
+    <string name="choose_image_size">Choose image resolution for OpenCV</string>
+    <string-array name="image_size_array">
+        <item>3</item>
+        <item>2.1</item>
+        <item>1.5</item>
+        <item>1.2</item>
+        <item>1</item>
+        <item>0.8</item>
+        <item>0.5</item>
+        <item>0.3</item>
+        <item>0.25</item>
+        <item>0.2</item>
+    </string-array>
+
 </resources>

@@ -27,6 +27,7 @@ import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
+import android.nfc.Tag;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -46,10 +47,22 @@ import android.view.ViewGroup;
 import android.widget.Toast;
 
 import org.opencv.android.Utils;
+import org.opencv.calib3d.Calib3d;
+import org.opencv.core.Core;
+import org.opencv.core.CvType;
+import org.opencv.core.DMatch;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfDMatch;
+import org.opencv.core.MatOfKeyPoint;
+import org.opencv.core.MatOfPoint;
+import org.opencv.core.MatOfPoint2f;
+import org.opencv.core.Scalar;
 import org.opencv.features2d.DescriptorExtractor;
 import org.opencv.features2d.DescriptorMatcher;
 import org.opencv.features2d.FeatureDetector;
+import org.opencv.features2d.FlannBasedMatcher;
+import org.opencv.imgcodecs.Imgcodecs;
+import org.opencv.imgproc.Imgproc;
 import org.opencv.xfeatures2d.SIFT;
 import org.opencv.xfeatures2d.Xfeatures2d;
 
@@ -67,11 +80,19 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.HttpsURLConnection;
+
+import static com.example.deg032.opencvwithsift.MainActivity.MIN_MATCH_COUNT;
+import static com.example.deg032.opencvwithsift.MainActivity.mRefDescriptors;
+import static com.example.deg032.opencvwithsift.MainActivity.mRefKeyPoints;
+import static com.example.deg032.opencvwithsift.MainActivity.nResolutionDivider;
+import static com.example.deg032.opencvwithsift.MainActivity.objImageMat;
 
 public class Camera2BasicFragment extends Fragment
         implements View.OnClickListener, ActivityCompat.OnRequestPermissionsResultCallback {
@@ -276,12 +297,12 @@ public class Camera2BasicFragment extends Fragment
             byte[] bytes = new byte[buffer.remaining()];
             buffer.get(bytes);
 
-            mOpenCVHandler.post(new ImageProcessor(bytes));
+            mBackgroundHandler.post(new ImageProcessor(bytes, image.getHeight(), image.getWidth()));
 
-            mBackgroundHandler.post(new ImageSaver(bytes, mFile));
+            //mBackgroundHandler.post(new ImageSaver(bytes, mFile));
             //, mUrlString));
 
-            mNetworkHandler.post(new ImageUploader(bytes, mUrlString));
+            //mNetworkHandler.post(new ImageUploader(bytes, mUrlString));
 
             image.close();
         }
@@ -697,6 +718,7 @@ public class Camera2BasicFragment extends Fragment
         mBackgroundThread.start();
         mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
 
+        /**
         mNetworkThread = new HandlerThread("NetworkBackground");
         mNetworkThread.start();
         mNetworkHandler = new Handler(mNetworkThread.getLooper());
@@ -704,6 +726,7 @@ public class Camera2BasicFragment extends Fragment
         mOpenCVThread = new HandlerThread("OpenCVBackground");
         mOpenCVThread.start();
         mOpenCVHandler = new Handler(mOpenCVThread.getLooper());
+         */
 
     }
 
@@ -720,6 +743,7 @@ public class Camera2BasicFragment extends Fragment
             e.printStackTrace();
         }
 
+        /**
         mNetworkThread.quitSafely();
         try {
             mNetworkThread.join();
@@ -736,7 +760,7 @@ public class Camera2BasicFragment extends Fragment
             mOpenCVHandler = null;
         } catch (InterruptedException e) {
             e.printStackTrace();
-        }
+        }*/
 
     }
 
@@ -906,8 +930,8 @@ public class Camera2BasicFragment extends Fragment
                 public void onCaptureCompleted(@NonNull CameraCaptureSession session,
                                                @NonNull CaptureRequest request,
                                                @NonNull TotalCaptureResult result) {
-                    showToast("Saved: " + mFile);
-                    Log.d(TAG, mFile.toString());
+                    //showToast("Saved: " + mFile);
+                    //Log.d(TAG, mFile.toString());
                     unlockFocus();
                 }
             };
@@ -985,53 +1009,152 @@ public class Camera2BasicFragment extends Fragment
     /**
      * Processes the JPEG {@link Image} using OpenCV.
      */
-    private static class ImageProcessor implements Runnable {
+    public List<MatOfPoint> ImageMatcher(MatOfKeyPoint keyPoints, Mat descriptors){
+        List<MatOfPoint> mScenePoints = new ArrayList<>();
+        List<MatOfDMatch> matches = new ArrayList<>();
+        FlannBasedMatcher descriptorMatcher = FlannBasedMatcher.create();
+        descriptorMatcher.knnMatch(mRefDescriptors, descriptors, matches, 2);
 
+        long time = System.currentTimeMillis();
+
+        // ratio test
+        LinkedList<DMatch> good_matches = new LinkedList<>();
+        for (Iterator<MatOfDMatch> iterator = matches.iterator(); iterator.hasNext();) {
+            MatOfDMatch matOfDMatch = iterator.next();
+            if (matOfDMatch.toArray()[0].distance / matOfDMatch.toArray()[1].distance < 0.75) {
+                good_matches.add(matOfDMatch.toArray()[0]);
+            }
+        }
+
+        long time1 = System.currentTimeMillis();
+
+        if (good_matches.size()>MIN_MATCH_COUNT){
+            /** get keypoint coordinates of good matches to find homography and remove outliers using ransac */
+            List<org.opencv.core.Point> refPoints = new ArrayList<>();
+            List<org.opencv.core.Point> mPoints = new ArrayList<>();
+            for(int i = 0; i<good_matches.size(); i++){
+                refPoints.add(mRefKeyPoints.toList().get(good_matches.get(i).queryIdx).pt);
+                mPoints.add(keyPoints.toList().get(good_matches.get(i).trainIdx).pt);
+            }
+            // convertion of data types - there is maybe a more beautiful way
+            Mat outputMask = new Mat();
+            MatOfPoint2f rPtsMat = new MatOfPoint2f();
+            rPtsMat.fromList(refPoints);
+            MatOfPoint2f mPtsMat = new MatOfPoint2f();
+            mPtsMat.fromList(mPoints);
+
+            Mat obj_corners = new Mat(4,1,CvType.CV_32FC2);
+            Mat scene_corners = new Mat(4,1,CvType.CV_32FC2);
+
+            obj_corners.put(0, 0, new double[] {0,0});
+            obj_corners.put(1, 0, new double[] {objImageMat.width()-1,0});
+            obj_corners.put(2, 0, new double[] {objImageMat.width()-1,objImageMat.height()-1});
+            obj_corners.put(3, 0, new double[] {0,objImageMat.height()-1});
+
+            // Find homography - here just used to perform match filtering with RANSAC, but could be used to e.g. stitch images
+            // the smaller the allowed reprojection error (here 15), the more matches are filtered
+            Mat Homog = Calib3d.findHomography(rPtsMat, mPtsMat, Calib3d.RANSAC, 15, outputMask, 2000, 0.995);
+            Core.perspectiveTransform(obj_corners,scene_corners,Homog);
+
+            ArrayList<org.opencv.core.Point> points = new ArrayList<>();
+            MatOfPoint sceneCorners = new MatOfPoint();
+            for (int i=0; i < scene_corners.rows(); i++) {
+                org.opencv.core.Point point = new org.opencv.core.Point();
+                point.set(scene_corners.get(i,0));
+                Log.d(TAG,point.toString());
+                points.add(point);
+            }
+            sceneCorners.fromList(points);
+            mScenePoints.add(sceneCorners);
+
+            Log.d(TAG, "Time to Match: " + Long.toString((time1 - time))
+                            + ", Number of matches: " + good_matches.size()
+                            + ", Time to transform: " + Long.toString((System.currentTimeMillis() - time1)) );
+            //result = "Enough matches.";
+        } else {
+            Log.d(TAG, "Time to Match: " + Long.toString((System.currentTimeMillis() - time)) +
+                    ", Not Enough Matches");
+            //result = "Not enough matches.";
+        }
+
+        return mScenePoints;
+    }
+        /**
+     * Processes the JPEG {@link Image} using OpenCV.
+     */
+    private class ImageProcessor implements Runnable {
+
+        private static final String TAG = "ImageProcessor";
         /**
          * The image in a byte stream.
          */
         private final byte[] mBytes;
 
-        private Mat mRgba;
+        private final int mHeight;
 
-        private Mat mGrayMat;
+        private final int mWidth;
 
-        Mat descriptors ;
-        List<Mat> descriptorsList;
-
-        SIFT featureDetector;
-        //MatOfKeyPoint keyPoints;
-        DescriptorExtractor descriptorExtractor;
-        DescriptorMatcher descriptorMatcher;
-
-        ImageProcessor(byte[] bytes) {
+        ImageProcessor(byte[] bytes, int height, int width) {
             mBytes = bytes;
+            mHeight = height;
+            mWidth = width;
         }
 
         /** Saving the image */
         @Override
         public void run() {
 
-            Bitmap bitmapImage = BitmapFactory.decodeByteArray(mBytes, 0, mBytes.length, null);
-            Mat mat = new Mat();
-            Utils.bitmapToMat(bitmapImage, mat);
+            List<MatOfPoint> scenePoints;
 
-            /** Convert opencv Mat to bytestream **/
-            byte[] return_buff = new byte[(int) (mat.total() * mat.channels())];
-            mat.get(0, 0, return_buff);
-            mRgba = new Mat();
-            mGrayMat = new Mat();
+            Mat buf = new Mat(mWidth, mHeight, CvType.CV_8UC1);
+            buf.put(0,0, mBytes);
+            Mat mat = Imgcodecs.imdecode(buf, Imgcodecs.IMREAD_COLOR);
+
+            //mRgba = new Mat();
+            //mGrayMat = new Mat();
+
+            SIFT mFeatureDetector = SIFT.create();
+            // DescriptorMatcher mDescriptorMatcher = DescriptorMatcher.create(1);
+            MatOfKeyPoint mKeyPoints = new MatOfKeyPoint();
+            Mat mDescriptors = new Mat();
+
+            if (nResolutionDivider < 2.1) {
+                nResolutionDivider = 2.4;
+            }
+
+            long time1 = System.currentTimeMillis();
+
+            /** Resizing image */
+            Mat nMat = new Mat();
+            org.opencv.core.Size sz = new org.opencv.core.Size(mat.width()/nResolutionDivider,mat.height()/nResolutionDivider);
+            Imgproc.resize( mat, nMat, sz );
+
+            Log.d(TAG, "Height: " + Integer.toString(nMat.height())
+                    + ", Width: " + Integer.toString(nMat.width())
+                    + ", Time to Resize: " + Long.toString((System.currentTimeMillis() - time1)));
+
+            long time2 = System.currentTimeMillis();
 
             try {
-                featureDetector= FeatureDetector.create(FeatureDetector.SIFT);
-                descriptorExtractor= DescriptorExtractor.create(DescriptorExtractor.SURF);
-                descriptorMatcher= DescriptorMatcher.create(6);
-                //keyPoints = new MatOfKeyPoint();
-                descriptors = new Mat();
+                mFeatureDetector.detect(nMat, mKeyPoints);
+                mFeatureDetector.compute(nMat, mKeyPoints, mDescriptors);
+                Log.d(TAG, "Time to Process: " + Long.toString((System.currentTimeMillis() - time2)) +
+                        ", Number of Key points: " + mKeyPoints.toArray().length);
+
             } catch (Exception e) {
                 e.printStackTrace();
+                Log.d(TAG, "Cannot process.");
             } /**finally
             } */
+
+            scenePoints = ImageMatcher(mKeyPoints, mDescriptors);
+            Imgproc.drawContours(nMat, scenePoints, 0, new Scalar(255, 0, 0), 3);
+
+            // save output image
+            File cvFile = new File(getActivity().getExternalFilesDir(null), "cv_results.jpg");
+            String filename = cvFile.getAbsolutePath();
+            Imgcodecs.imwrite(filename, nMat);
+
 
         }
 
@@ -1040,7 +1163,9 @@ public class Camera2BasicFragment extends Fragment
     /**
      * Saves a JPEG {@link Image} into the specified {@link File}.
      */
-    private static class ImageSaver implements Runnable {
+    private class ImageSaver implements Runnable {
+
+        private static final String TAG = "ImageSaver";
 
         /**
          * The image in a byte stream.
@@ -1064,6 +1189,8 @@ public class Camera2BasicFragment extends Fragment
             try {
                 output = new FileOutputStream(mFile);
                 output.write(mBytes);
+                showToast("Saved: " + mFile);
+                Log.d(TAG, "Saved to:" + mFile.toString());
             } catch (IOException e) {
                 e.printStackTrace();
             } finally {
@@ -1083,8 +1210,9 @@ public class Camera2BasicFragment extends Fragment
     /**
      * Uploads a JPEG {@link Image} into the specified {@link URL}.
      */
-    private static class ImageUploader implements Runnable {
+    private class ImageUploader implements Runnable {
 
+        private static final String TAG = "ImageUploader";
         /**
          * The image in a byte stream.
          */
@@ -1156,7 +1284,9 @@ public class Camera2BasicFragment extends Fragment
                 OutputStream outputBuff = new BufferedOutputStream(urlConnection.getOutputStream());
 
                 try {
+                    //showToast("Uploaded to: " + mURL.toString());
                     outputBuff.write(mBytes);
+                    Log.d(TAG, "Uploaded to: " + mURL.toString());
                 } catch (IOException e) {
                     e.printStackTrace();
                 } finally {
