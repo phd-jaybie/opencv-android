@@ -93,6 +93,7 @@ import static com.example.deg032.opencvwithsift.MainActivity.mRefDescriptors;
 import static com.example.deg032.opencvwithsift.MainActivity.mRefKeyPoints;
 import static com.example.deg032.opencvwithsift.MainActivity.nResolutionDivider;
 import static com.example.deg032.opencvwithsift.MainActivity.objImageMat;
+import static com.example.deg032.opencvwithsift.MainActivity.operatingMode;
 
 public class Camera2BasicFragment extends Fragment
         implements View.OnClickListener, ActivityCompat.OnRequestPermissionsResultCallback {
@@ -253,19 +254,9 @@ public class Camera2BasicFragment extends Fragment
     private Handler mBackgroundHandler;
 
     /**
-     * An additional network thread for running tasks that shouldn't block the UI.
-     */
-    private HandlerThread mNetworkThread;
-
-    /**
      * A {@link Handler} for running network tasks in the background.
      */
     private Handler mNetworkHandler;
-
-    /**
-     * An additional network thread for running tasks that shouldn't block the UI.
-     */
-    private HandlerThread mOpenCVThread;
 
     /**
      * A {@link Handler} for running network tasks in the background.
@@ -297,13 +288,26 @@ public class Camera2BasicFragment extends Fragment
             byte[] bytes = new byte[buffer.remaining()];
             buffer.get(bytes);
 
-            mBackgroundHandler.post(new ImageProcessor(bytes, image.getHeight(), image.getWidth()));
-
-            //mBackgroundHandler.post(new ImageSaver(bytes, mFile));
-            //, mUrlString));
-
-            //mNetworkHandler.post(new ImageUploader(bytes, mUrlString));
-
+            switch (operatingMode) {
+                case 1:
+                    mBackgroundHandler.post(new ImageProcessor(bytes, image.getHeight(), image.getWidth()));
+                    break;
+                case 2:
+                    mUrlString = "http://192.168.43.98:8081";
+                    mBackgroundHandler.post(new ImageUploader(bytes, mUrlString, image.getHeight(), image.getWidth()));
+                    break;
+                case 3:
+                    mUrlString = "http://ec2-13-55-252-24.ap-southeast-2.compute.amazonaws.com:8081";
+                    mBackgroundHandler.post(new ImageUploader(bytes, mUrlString, image.getHeight(), image.getWidth()));
+                    break;
+                case 4:
+                    mFile = new File(getActivity().getExternalFilesDir(null), "pic.jpg");
+                    mBackgroundHandler.post(new ImageSaver(bytes, mFile));
+                    break;
+                default:
+                    mBackgroundHandler.post(new ImageProcessor(bytes, image.getHeight(), image.getWidth()));
+                    break;
+            }
             image.close();
         }
 
@@ -495,8 +499,6 @@ public class Camera2BasicFragment extends Fragment
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
-        mFile = new File(getActivity().getExternalFilesDir(null), "pic.jpg");
-        mUrlString = "http://192.168.43.98:8081";
     }
 
     @Override
@@ -570,11 +572,20 @@ public class Camera2BasicFragment extends Fragment
                     continue;
                 }
 
+                if (nResolutionDivider < 2.0) {
+                    nResolutionDivider = 2.0;
+                }
+
                 // For still image captures, we use the largest available size.
                 Size largest = Collections.max(
                         Arrays.asList(map.getOutputSizes(ImageFormat.JPEG)),
                         new CompareSizesByArea());
-                mImageReader = ImageReader.newInstance(largest.getWidth(), largest.getHeight(),
+                double nWidth = largest.getWidth()/nResolutionDivider;
+                int iWidth = (int) nWidth;
+                double nHeight = largest.getHeight()/nResolutionDivider;
+                int iHeight = (int) nHeight;
+
+                mImageReader = ImageReader.newInstance(iWidth, iHeight,
                         ImageFormat.JPEG, /*maxImages*/1);
                 mImageReader.setOnImageAvailableListener(
                         mOnImageAvailableListener, mBackgroundHandler);
@@ -1061,19 +1072,19 @@ public class Camera2BasicFragment extends Fragment
             for (int i=0; i < scene_corners.rows(); i++) {
                 org.opencv.core.Point point = new org.opencv.core.Point();
                 point.set(scene_corners.get(i,0));
-                Log.d(TAG,point.toString());
                 points.add(point);
             }
             sceneCorners.fromList(points);
             mScenePoints.add(sceneCorners);
 
             Log.d(TAG, "Time to Match: " + Long.toString((time1 - time))
-                            + ", Number of matches: " + good_matches.size()
-                            + ", Time to transform: " + Long.toString((System.currentTimeMillis() - time1)) );
+                    + ", Number of matches: " + good_matches.size()
+                    + "(" + Integer.toString(MIN_MATCH_COUNT) + ")"
+                    + ", Time to transform: " + Long.toString((System.currentTimeMillis() - time1)) );
             //result = "Enough matches.";
         } else {
             Log.d(TAG, "Time to Match: " + Long.toString((System.currentTimeMillis() - time)) +
-                    ", Not Enough Matches");
+                    ", Not Enough Matches(" + Integer.toString(MIN_MATCH_COUNT) + ")");
             //result = "Not enough matches.";
         }
 
@@ -1118,27 +1129,23 @@ public class Camera2BasicFragment extends Fragment
             MatOfKeyPoint mKeyPoints = new MatOfKeyPoint();
             Mat mDescriptors = new Mat();
 
-            if (nResolutionDivider < 2.1) {
-                nResolutionDivider = 2.4;
-            }
+            //long time1 = System.currentTimeMillis();
 
-            long time1 = System.currentTimeMillis();
-
-            /** Resizing image */
+            /** Resizing image *
             Mat nMat = new Mat();
             org.opencv.core.Size sz = new org.opencv.core.Size(mat.width()/nResolutionDivider,mat.height()/nResolutionDivider);
-            Imgproc.resize( mat, nMat, sz );
+            Imgproc.resize( mat, nMat, sz );*/
 
-            Log.d(TAG, "Height: " + Integer.toString(nMat.height())
-                    + ", Width: " + Integer.toString(nMat.width())
-                    + ", Time to Resize: " + Long.toString((System.currentTimeMillis() - time1)));
+            Log.d(TAG, "Height: " + Integer.toString(mat.height())
+                    + ", Width: " + Integer.toString(mat.width()));
+                    //+ ", Time to Resize: " + Long.toString((System.currentTimeMillis() - time1)));
 
             long time2 = System.currentTimeMillis();
 
             try {
-                mFeatureDetector.detect(nMat, mKeyPoints);
-                mFeatureDetector.compute(nMat, mKeyPoints, mDescriptors);
-                Log.d(TAG, "Time to Process: " + Long.toString((System.currentTimeMillis() - time2)) +
+                mFeatureDetector.detect(mat, mKeyPoints);
+                mFeatureDetector.compute(mat, mKeyPoints, mDescriptors);
+                Log.d(TAG, "Time to Process locally: " + Long.toString((System.currentTimeMillis() - time2)) +
                         ", Number of Key points: " + mKeyPoints.toArray().length);
 
             } catch (Exception e) {
@@ -1148,12 +1155,13 @@ public class Camera2BasicFragment extends Fragment
             } */
 
             scenePoints = ImageMatcher(mKeyPoints, mDescriptors);
-            Imgproc.drawContours(nMat, scenePoints, 0, new Scalar(255, 0, 0), 3);
+
+            Imgproc.drawContours(mat, scenePoints, 0, new Scalar(255, 0, 0), 3);
 
             // save output image
-            File cvFile = new File(getActivity().getExternalFilesDir(null), "cv_results.jpg");
+            File cvFile = new File(getActivity().getExternalFilesDir(null), "cv_local_process.jpg");
             String filename = cvFile.getAbsolutePath();
-            Imgcodecs.imwrite(filename, nMat);
+            Imgcodecs.imwrite(filename, mat);
 
 
         }
@@ -1223,50 +1231,31 @@ public class Camera2BasicFragment extends Fragment
          */
         private final String mUrlString;
 
-        ImageUploader(byte[] bytes, String url) {
+        private final int mHeight;
+
+        private final int mWidth;
+
+        ImageUploader(byte[] bytes, String url, int height, int width) {
             mBytes = bytes;
             mUrlString = url;
-        }
-
-        private String readStream(InputStream stream) throws IOException {
-            int maxLength = 50;
-            String result = null;
-
-            // Read InputStream using the UTF-8 charset.
-            InputStreamReader reader = new InputStreamReader(stream, "UTF-8");
-
-            // Create temporary buffer to hold Stream data with specified max length.
-            char[] buffer = new char[maxLength];
-            // Populate temporary buffer with Stream data.
-            int numChars = 0;
-            int readSize = 0;
-            while (numChars < maxLength && readSize != -1) {
-                numChars += readSize;
-                readSize = reader.read(buffer, numChars, buffer.length - numChars);
-            }
-            if (numChars != -1) {
-                // The stream was not empty.
-                // Create String that is actual length of response body if actual length was less than
-                // max length.
-                numChars = Math.min(numChars, maxLength);
-                result = new String(buffer, 0, numChars);
-            }
-            return result;
+            mHeight = height;
+            mWidth = width;
         }
 
         /** Saving the image */
         @Override
         public void run() {
 
+            Log.d(TAG, "Height: " + Integer.toString(mHeight)
+                    + ", Width: " + Integer.toString(mWidth));
+
             /** Uploading the image */
             URL mURL;
             HttpURLConnection urlConnection = null;
-            String result;
+            String[] result;
             InputStream inputBuff = null;
 
             try {
-                Log.d(TAG, "Sending Image to remote.");
-
                 mURL = new URL(mUrlString);
                 urlConnection = (HttpURLConnection) mURL.openConnection();
 
@@ -1279,14 +1268,17 @@ public class Camera2BasicFragment extends Fragment
                 urlConnection.setRequestProperty("Content-type", "image/jpeg");;
                 urlConnection.addRequestProperty("Content-length", mBytes.length +"");
 
-                urlConnection.connect();
+                //urlConnection.connect();
 
                 OutputStream outputBuff = new BufferedOutputStream(urlConnection.getOutputStream());
+
+                Log.d(TAG, "Sending Image to remote: " + mURL.toString());
+                long time = System.currentTimeMillis();
 
                 try {
                     //showToast("Uploaded to: " + mURL.toString());
                     outputBuff.write(mBytes);
-                    Log.d(TAG, "Uploaded to: " + mURL.toString());
+                    Log.d(TAG, "Uploaded.");
                 } catch (IOException e) {
                     e.printStackTrace();
                 } finally {
@@ -1294,6 +1286,7 @@ public class Camera2BasicFragment extends Fragment
                 }
 
                 int responseCode = urlConnection.getResponseCode();
+                String responseLength = urlConnection.getHeaderField("Content-length");
 
                 if (responseCode != HttpsURLConnection.HTTP_OK) {
                     throw new IOException("HTTP error code: " + responseCode);
@@ -1301,12 +1294,14 @@ public class Camera2BasicFragment extends Fragment
 
                 try{
                     inputBuff = urlConnection.getInputStream();
-                    result = readStream(inputBuff);
-                    Log.d(TAG, "Received from remote: " + result);
+                    result = readStream(inputBuff, responseLength);
+                    RemoteImageProcessor(mBytes, mHeight, mWidth, result);
+                    Log.d(TAG, "Total Round-trip time: " + Long.toString((System.currentTimeMillis() - time)));
                     //showToast("Received from remote: " + result);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
+
 
             } catch (IOException e) {
                 e.printStackTrace();
@@ -1316,6 +1311,79 @@ public class Camera2BasicFragment extends Fragment
 
         }
 
+    }
+
+    public void RemoteImageProcessor(byte[] bytes, int height, int width, String[] results) {
+        final String TAG = "RemoteImageProcessor";
+        List<MatOfPoint> mScenePoints = new ArrayList<>();
+
+        Double remoteTime = Double.parseDouble(results[0])*1000;
+
+        long time = System.currentTimeMillis();
+
+        Mat buf = new Mat(width, height, CvType.CV_8UC1);
+        buf.put(0,0, bytes);
+        Mat mat = Imgcodecs.imdecode(buf, Imgcodecs.IMREAD_COLOR);
+
+        if (results.length>2) {
+            ArrayList<org.opencv.core.Point> points = new ArrayList<>();
+            MatOfPoint sceneCorners = new MatOfPoint();
+            for (int i=1; i<8; i=i+2){
+                org.opencv.core.Point point = new org.opencv.core.Point();
+                String resultPoint = results[i].replaceAll("\\[","")
+                        .replaceAll("\\]","")
+                        .replaceAll("\\.","")
+                        .replaceAll(" ","");
+                String[] resPoint = resultPoint.split(",");
+                point.set(new double[] {Integer.valueOf(resPoint[0]), Integer.valueOf(resPoint[1])});
+                points.add(point);
+            }
+            sceneCorners.fromList(points);
+            mScenePoints.add(sceneCorners);
+
+            Imgproc.drawContours(mat, mScenePoints, 0, new Scalar(255, 0, 0), 3);
+
+            Log.d(TAG, "Time to process and match remotely: " + Integer.toString(remoteTime.intValue())
+                    + ", Time to transform: " + Long.toString((System.currentTimeMillis() - time)));
+        } else {
+            Log.d(TAG, "Time to process and match remotely: " + Integer.toString(remoteTime.intValue())
+                    + "\n" + results[1]);
+        }
+
+        // save output image
+        File cvFile = new File(getActivity().getExternalFilesDir(null), "cv_remote_process.jpg");
+        String filename = cvFile.getAbsolutePath();
+        Imgcodecs.imwrite(filename, mat);
+
+    }
+
+    public String[] readStream(InputStream stream, String length) throws IOException {
+        int maxLength = Integer.valueOf(length);
+        Log.d(TAG, "Content Length: " + Integer.toString(maxLength));
+        String result = null;
+
+        // Read InputStream using the UTF-8 charset.
+        InputStreamReader reader = new InputStreamReader(stream, "UTF-8");
+
+        // Create temporary buffer to hold Stream data with specified max length.
+        char[] buffer = new char[maxLength];
+        // Populate temporary buffer with Stream data.
+        int numChars = 0;
+        int readSize = 0;
+        while (numChars < maxLength && readSize != -1) {
+            numChars += readSize;
+            readSize = reader.read(buffer, numChars, buffer.length - numChars);
+        }
+        if (numChars != -1) {
+            // The stream was not empty.
+            // Create String that is actual length of response body if actual length was less than
+            // max length.
+            numChars = Math.min(numChars, maxLength);
+            result = new String(buffer, 0, numChars);
+        }
+        String[] results = result.split("\n");
+        Log.d(TAG, "Number of lines received: "+ results.length);
+        return results;
     }
 
 
