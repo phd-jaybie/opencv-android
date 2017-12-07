@@ -1021,6 +1021,8 @@ public class Camera2BasicFragment extends Fragment
      * Processes the JPEG {@link Image} using OpenCV.
      */
     public List<MatOfPoint> ImageMatcher(MatOfKeyPoint keyPoints, Mat descriptors){
+        final String TAG = "LocalImageMatcher";
+
         List<MatOfPoint> mScenePoints = new ArrayList<>();
         List<MatOfDMatch> matches = new ArrayList<>();
         FlannBasedMatcher descriptorMatcher = FlannBasedMatcher.create();
@@ -1077,14 +1079,21 @@ public class Camera2BasicFragment extends Fragment
             sceneCorners.fromList(points);
             mScenePoints.add(sceneCorners);
 
-            Log.d(TAG, "Time to Match: " + Long.toString((time1 - time))
-                    + ", Number of matches: " + good_matches.size()
-                    + "(" + Integer.toString(MIN_MATCH_COUNT) + ")"
-                    + ", Time to transform: " + Long.toString((System.currentTimeMillis() - time1)) );
+            if (Imgproc.contourArea(mScenePoints.get(0)) > (MIN_MATCH_COUNT*MIN_MATCH_COUNT)) {
+                Log.d(TAG, "Time to Match: " + Long.toString((time1 - time))
+                        + ", Number of matches: " + good_matches.size()
+                        + " (" + Integer.toString(MIN_MATCH_COUNT) + ")"
+                        + ", Time to transform: " + Long.toString((System.currentTimeMillis() - time1)));
+            } else {
+                Log.d(TAG, "Time to Match: " + Long.toString((time1 - time))
+                        + ", Object probably not in view even with " + good_matches.size()
+                        + " (" + Integer.toString(MIN_MATCH_COUNT) + ") matches.");
+            }
             //result = "Enough matches.";
         } else {
-            Log.d(TAG, "Time to Match: " + Long.toString((System.currentTimeMillis() - time)) +
-                    ", Not Enough Matches(" + Integer.toString(MIN_MATCH_COUNT) + ")");
+            Log.d(TAG, "Time to Match: " + Long.toString((System.currentTimeMillis() - time))
+                    + ", Not Enough Matches (" + good_matches.size()
+                    + "/" + Integer.toString(MIN_MATCH_COUNT) + ")");
             //result = "Not enough matches.";
         }
 
@@ -1136,8 +1145,8 @@ public class Camera2BasicFragment extends Fragment
             org.opencv.core.Size sz = new org.opencv.core.Size(mat.width()/nResolutionDivider,mat.height()/nResolutionDivider);
             Imgproc.resize( mat, nMat, sz );*/
 
-            Log.d(TAG, "Height: " + Integer.toString(mat.height())
-                    + ", Width: " + Integer.toString(mat.width()));
+            //Log.d(TAG, "Height: " + Integer.toString(mat.height())
+            //        + ", Width: " + Integer.toString(mat.width()));
                     //+ ", Time to Resize: " + Long.toString((System.currentTimeMillis() - time1)));
 
             long time2 = System.currentTimeMillis();
@@ -1145,8 +1154,10 @@ public class Camera2BasicFragment extends Fragment
             try {
                 mFeatureDetector.detect(mat, mKeyPoints);
                 mFeatureDetector.compute(mat, mKeyPoints, mDescriptors);
-                Log.d(TAG, "Time to Process locally: " + Long.toString((System.currentTimeMillis() - time2)) +
-                        ", Number of Key points: " + mKeyPoints.toArray().length);
+                Log.d(TAG, "Height: " + Integer.toString(mHeight)
+                        + ", Width: " + Integer.toString(mWidth)
+                        + " Time to Extract locally: " + Long.toString((System.currentTimeMillis() - time2))
+                        + ", Number of Key points: " + mKeyPoints.toArray().length);
 
             } catch (Exception e) {
                 e.printStackTrace();
@@ -1154,15 +1165,17 @@ public class Camera2BasicFragment extends Fragment
             } /**finally
             } */
 
-            scenePoints = ImageMatcher(mKeyPoints, mDescriptors);
-
-            Imgproc.drawContours(mat, scenePoints, 0, new Scalar(255, 0, 0), 3);
+            if (0 != mKeyPoints.toArray().length) {
+                scenePoints = ImageMatcher(mKeyPoints, mDescriptors);
+                Imgproc.drawContours(mat, scenePoints, 0, new Scalar(255, 0, 0), 3);
+            } else {
+                Log.d(TAG, "Cannot process: No key points");
+            }
 
             // save output image
             File cvFile = new File(getActivity().getExternalFilesDir(null), "cv_local_process.jpg");
             String filename = cvFile.getAbsolutePath();
             Imgcodecs.imwrite(filename, mat);
-
 
         }
 
@@ -1246,8 +1259,8 @@ public class Camera2BasicFragment extends Fragment
         @Override
         public void run() {
 
-            Log.d(TAG, "Height: " + Integer.toString(mHeight)
-                    + ", Width: " + Integer.toString(mWidth));
+            //Log.d(TAG, "Height: " + Integer.toString(mHeight)
+            //        + ", Width: " + Integer.toString(mWidth));
 
             /** Uploading the image */
             URL mURL;
@@ -1256,6 +1269,8 @@ public class Camera2BasicFragment extends Fragment
             InputStream inputBuff = null;
 
             try {
+                long time = System.currentTimeMillis();
+
                 mURL = new URL(mUrlString);
                 urlConnection = (HttpURLConnection) mURL.openConnection();
 
@@ -1268,17 +1283,16 @@ public class Camera2BasicFragment extends Fragment
                 urlConnection.setRequestProperty("Content-type", "image/jpeg");;
                 urlConnection.addRequestProperty("Content-length", mBytes.length +"");
 
-                //urlConnection.connect();
+                urlConnection.connect();
 
                 OutputStream outputBuff = new BufferedOutputStream(urlConnection.getOutputStream());
 
-                Log.d(TAG, "Sending Image to remote: " + mURL.toString());
-                long time = System.currentTimeMillis();
+                //Log.d(TAG, "Sending Image to remote: " + mURL.toString());
 
                 try {
                     //showToast("Uploaded to: " + mURL.toString());
                     outputBuff.write(mBytes);
-                    Log.d(TAG, "Uploaded.");
+                    //Log.d(TAG, "Uploaded.");
                 } catch (IOException e) {
                     e.printStackTrace();
                 } finally {
@@ -1295,13 +1309,14 @@ public class Camera2BasicFragment extends Fragment
                 try{
                     inputBuff = urlConnection.getInputStream();
                     result = readStream(inputBuff, responseLength);
+                    Log.d(TAG, "Height: " + Integer.toString(mHeight)
+                            + ", Width: " + Integer.toString(mWidth)
+                            + " Total Round-trip time: " + Long.toString((System.currentTimeMillis() - time)));
                     RemoteImageProcessor(mBytes, mHeight, mWidth, result);
-                    Log.d(TAG, "Total Round-trip time: " + Long.toString((System.currentTimeMillis() - time)));
                     //showToast("Received from remote: " + result);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
-
 
             } catch (IOException e) {
                 e.printStackTrace();
@@ -1341,12 +1356,17 @@ public class Camera2BasicFragment extends Fragment
             sceneCorners.fromList(points);
             mScenePoints.add(sceneCorners);
 
-            Imgproc.drawContours(mat, mScenePoints, 0, new Scalar(255, 0, 0), 3);
+            if (Imgproc.contourArea(mScenePoints.get(0)) > (MIN_MATCH_COUNT*MIN_MATCH_COUNT)) {
+                Imgproc.drawContours(mat, mScenePoints, 0, new Scalar(255, 0, 0), 3);
+                Log.d(TAG, "Time to extract and match remotely: " + Integer.toString(remoteTime.intValue())
+                        + ", Time to transform: " + Long.toString((System.currentTimeMillis() - time)));
+            } else {
+                Log.d(TAG, "Time to extract and match remotely: " + Integer.toString(remoteTime.intValue())
+                        + ", but object is probably not in view.");
+            }
 
-            Log.d(TAG, "Time to process and match remotely: " + Integer.toString(remoteTime.intValue())
-                    + ", Time to transform: " + Long.toString((System.currentTimeMillis() - time)));
         } else {
-            Log.d(TAG, "Time to process and match remotely: " + Integer.toString(remoteTime.intValue())
+            Log.d(TAG, "Time to extract and match remotely: " + Integer.toString(remoteTime.intValue())
                     + "\n" + results[1]);
         }
 
@@ -1359,7 +1379,6 @@ public class Camera2BasicFragment extends Fragment
 
     public String[] readStream(InputStream stream, String length) throws IOException {
         int maxLength = Integer.valueOf(length);
-        Log.d(TAG, "Content Length: " + Integer.toString(maxLength));
         String result = null;
 
         // Read InputStream using the UTF-8 charset.
@@ -1382,7 +1401,6 @@ public class Camera2BasicFragment extends Fragment
             result = new String(buffer, 0, numChars);
         }
         String[] results = result.split("\n");
-        Log.d(TAG, "Number of lines received: "+ results.length);
         return results;
     }
 
