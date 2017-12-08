@@ -52,9 +52,9 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     private Handler backgroundHandler;
 
-    public static Double nResolutionDivider = 2.4;
+    public static Double nResolutionDivider = 8.0;
 
-    public static Integer MIN_MATCH_COUNT = 60;
+    public static Integer MIN_MATCH_COUNT = 40;
 
     public static Mat objImageMat;
 
@@ -161,9 +161,25 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                 nResolutionDivider = 8.0;
                 MIN_MATCH_COUNT = 40;
                 break;
+            case "0.151":
+                nResolutionDivider = 9.0;
+                MIN_MATCH_COUNT = 30;
+                break;
+            case "0.122":
+                nResolutionDivider = 10.0;
+                MIN_MATCH_COUNT = 30;
+                break;
+            case "0.101":
+                nResolutionDivider = 11.0;
+                MIN_MATCH_COUNT = 30;
+                break;
+            case "0.085":
+                nResolutionDivider = 12.0;
+                MIN_MATCH_COUNT = 30;
+                break;
             default:
-                nResolutionDivider = 2.4;
-                MIN_MATCH_COUNT = 130;
+                nResolutionDivider = 8.0;
+                MIN_MATCH_COUNT = 40;
                 break;
         }
         // Showing selected spinner item
@@ -210,8 +226,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     }
 
     public void onNothingSelected(AdapterView<?> parent) {
-        MIN_MATCH_COUNT = 60;
-        nResolutionDivider = 2.4;
+        MIN_MATCH_COUNT = 40;
+        nResolutionDivider = 8.0;
         operatingMode = INAPP;
     }
 

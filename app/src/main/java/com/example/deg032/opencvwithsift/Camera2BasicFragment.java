@@ -1020,7 +1020,7 @@ public class Camera2BasicFragment extends Fragment
     /**
      * Processes the JPEG {@link Image} using OpenCV.
      */
-    public List<MatOfPoint> ImageMatcher(MatOfKeyPoint keyPoints, Mat descriptors){
+    public void ImageMatcher(Mat imageMat, MatOfKeyPoint keyPoints, Mat descriptors){
         final String TAG = "LocalImageMatcher";
 
         List<MatOfPoint> mScenePoints = new ArrayList<>();
@@ -1084,6 +1084,7 @@ public class Camera2BasicFragment extends Fragment
                         + ", Number of matches: " + good_matches.size()
                         + " (" + Integer.toString(MIN_MATCH_COUNT) + ")"
                         + ", Time to transform: " + Long.toString((System.currentTimeMillis() - time1)));
+                Imgproc.drawContours(imageMat, mScenePoints, 0, new Scalar(255, 0, 0), 3);
             } else {
                 Log.d(TAG, "Time to Match: " + Long.toString((time1 - time))
                         + ", Object probably not in view even with " + good_matches.size()
@@ -1096,8 +1097,10 @@ public class Camera2BasicFragment extends Fragment
                     + "/" + Integer.toString(MIN_MATCH_COUNT) + ")");
             //result = "Not enough matches.";
         }
-
-        return mScenePoints;
+        // save output image
+        File cvFile = new File(getActivity().getExternalFilesDir(null), "cv_local_process.jpg");
+        String filename = cvFile.getAbsolutePath();
+        Imgcodecs.imwrite(filename, imageMat);
     }
         /**
      * Processes the JPEG {@link Image} using OpenCV.
@@ -1166,17 +1169,10 @@ public class Camera2BasicFragment extends Fragment
             } */
 
             if (0 != mKeyPoints.toArray().length) {
-                scenePoints = ImageMatcher(mKeyPoints, mDescriptors);
-                Imgproc.drawContours(mat, scenePoints, 0, new Scalar(255, 0, 0), 3);
+                ImageMatcher(mat,mKeyPoints, mDescriptors);
             } else {
                 Log.d(TAG, "Cannot process: No key points");
             }
-
-            // save output image
-            File cvFile = new File(getActivity().getExternalFilesDir(null), "cv_local_process.jpg");
-            String filename = cvFile.getAbsolutePath();
-            Imgcodecs.imwrite(filename, mat);
-
         }
 
     }
