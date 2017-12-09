@@ -254,16 +254,6 @@ public class Camera2BasicFragment extends Fragment
     private Handler mBackgroundHandler;
 
     /**
-     * A {@link Handler} for running network tasks in the background.
-     */
-    private Handler mNetworkHandler;
-
-    /**
-     * A {@link Handler} for running network tasks in the background.
-     */
-    private Handler mOpenCVHandler;
-
-    /**
      * An {@link ImageReader} that handles still image capture.
      */
     private ImageReader mImageReader;
@@ -283,6 +273,7 @@ public class Camera2BasicFragment extends Fragment
         @Override
         public void onImageAvailable(ImageReader reader) {
             Image image = reader.acquireNextImage();
+            mFile = new File(getActivity().getExternalFilesDir(null), "pic.jpg");
 
             ByteBuffer buffer = image.getPlanes()[0].getBuffer();
             byte[] bytes = new byte[buffer.remaining()];
@@ -301,7 +292,6 @@ public class Camera2BasicFragment extends Fragment
                     mBackgroundHandler.post(new ImageUploader(bytes, mUrlString, image.getHeight(), image.getWidth()));
                     break;
                 case 4:
-                    mFile = new File(getActivity().getExternalFilesDir(null), "pic.jpg");
                     mBackgroundHandler.post(new ImageSaver(bytes, mFile));
                     break;
                 default:
@@ -572,7 +562,7 @@ public class Camera2BasicFragment extends Fragment
                     continue;
                 }
 
-                if (nResolutionDivider < 2.0) {
+                if (nResolutionDivider < 2.0 && operatingMode == 1) {
                     nResolutionDivider = 2.0;
                 }
 
@@ -729,16 +719,6 @@ public class Camera2BasicFragment extends Fragment
         mBackgroundThread.start();
         mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
 
-        /**
-        mNetworkThread = new HandlerThread("NetworkBackground");
-        mNetworkThread.start();
-        mNetworkHandler = new Handler(mNetworkThread.getLooper());
-
-        mOpenCVThread = new HandlerThread("OpenCVBackground");
-        mOpenCVThread.start();
-        mOpenCVHandler = new Handler(mOpenCVThread.getLooper());
-         */
-
     }
 
     /**
@@ -753,25 +733,6 @@ public class Camera2BasicFragment extends Fragment
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-
-        /**
-        mNetworkThread.quitSafely();
-        try {
-            mNetworkThread.join();
-            mNetworkThread = null;
-            mNetworkHandler = null;
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
-        mOpenCVThread.quitSafely();
-        try {
-            mOpenCVThread.join();
-            mOpenCVThread = null;
-            mOpenCVHandler = null;
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }*/
 
     }
 
@@ -1050,7 +1011,6 @@ public class Camera2BasicFragment extends Fragment
                 mPoints.add(keyPoints.toList().get(good_matches.get(i).trainIdx).pt);
             }
             // convertion of data types - there is maybe a more beautiful way
-            Mat outputMask = new Mat();
             MatOfPoint2f rPtsMat = new MatOfPoint2f();
             rPtsMat.fromList(refPoints);
             MatOfPoint2f mPtsMat = new MatOfPoint2f();
@@ -1066,7 +1026,7 @@ public class Camera2BasicFragment extends Fragment
 
             // Find homography - here just used to perform match filtering with RANSAC, but could be used to e.g. stitch images
             // the smaller the allowed reprojection error (here 15), the more matches are filtered
-            Mat Homog = Calib3d.findHomography(rPtsMat, mPtsMat, Calib3d.RANSAC, 15, outputMask, 2000, 0.995);
+            Mat Homog = Calib3d.findHomography(rPtsMat, mPtsMat, Calib3d.RANSAC, 5);
             Core.perspectiveTransform(obj_corners,scene_corners,Homog);
 
             ArrayList<org.opencv.core.Point> points = new ArrayList<>();
@@ -1102,6 +1062,35 @@ public class Camera2BasicFragment extends Fragment
         String filename = cvFile.getAbsolutePath();
         Imgcodecs.imwrite(filename, imageMat);
     }
+
+    public Mat ImageSaveThenRead (byte[] mBytes) {
+
+        Mat mat;
+        /** Saving the Image first */
+        FileOutputStream output = null;
+        try {
+            output = new FileOutputStream(mFile);
+            output.write(mBytes);
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (null != output) {
+                try {
+                    output.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        /**Then, reading it back as an OpenCv Mat */
+        String filename = mFile.getAbsolutePath();
+        mat = Imgcodecs.imread(filename);
+
+        return mat;
+
+    }
+
         /**
      * Processes the JPEG {@link Image} using OpenCV.
      */
@@ -1127,11 +1116,16 @@ public class Camera2BasicFragment extends Fragment
         @Override
         public void run() {
 
-            List<MatOfPoint> scenePoints;
+            Mat mat;
 
-            Mat buf = new Mat(mWidth, mHeight, CvType.CV_8UC1);
-            buf.put(0,0, mBytes);
-            Mat mat = Imgcodecs.imdecode(buf, Imgcodecs.IMREAD_COLOR);
+            if (nResolutionDivider > 25) {
+                /** We save then read back the image */
+                mat = ImageSaveThenRead(mBytes);
+            } else {
+                Mat buf = new Mat(mWidth, mHeight, CvType.CV_8UC1);
+                buf.put(0,0, mBytes);
+                mat = Imgcodecs.imdecode(buf, Imgcodecs.IMREAD_COLOR);
+            }
 
             //mRgba = new Mat();
             //mGrayMat = new Mat();
@@ -1140,17 +1134,6 @@ public class Camera2BasicFragment extends Fragment
             // DescriptorMatcher mDescriptorMatcher = DescriptorMatcher.create(1);
             MatOfKeyPoint mKeyPoints = new MatOfKeyPoint();
             Mat mDescriptors = new Mat();
-
-            //long time1 = System.currentTimeMillis();
-
-            /** Resizing image *
-            Mat nMat = new Mat();
-            org.opencv.core.Size sz = new org.opencv.core.Size(mat.width()/nResolutionDivider,mat.height()/nResolutionDivider);
-            Imgproc.resize( mat, nMat, sz );*/
-
-            //Log.d(TAG, "Height: " + Integer.toString(mat.height())
-            //        + ", Width: " + Integer.toString(mat.width()));
-                    //+ ", Time to Resize: " + Long.toString((System.currentTimeMillis() - time1)));
 
             long time2 = System.currentTimeMillis();
 
@@ -1261,11 +1244,12 @@ public class Camera2BasicFragment extends Fragment
             /** Uploading the image */
             URL mURL;
             HttpURLConnection urlConnection = null;
-            String[] result;
+            String[] result = null;
             InputStream inputBuff = null;
 
+            long time = System.currentTimeMillis();
+
             try {
-                long time = System.currentTimeMillis();
 
                 mURL = new URL(mUrlString);
                 urlConnection = (HttpURLConnection) mURL.openConnection();
@@ -1302,16 +1286,17 @@ public class Camera2BasicFragment extends Fragment
                     throw new IOException("HTTP error code: " + responseCode);
                 }
 
-                try{
+                try {
                     inputBuff = urlConnection.getInputStream();
                     result = readStream(inputBuff, responseLength);
+                    //showToast("Received from remote: " + result);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } finally {
                     Log.d(TAG, "Height: " + Integer.toString(mHeight)
                             + ", Width: " + Integer.toString(mWidth)
                             + " Total Round-trip time: " + Long.toString((System.currentTimeMillis() - time)));
                     RemoteImageProcessor(mBytes, mHeight, mWidth, result);
-                    //showToast("Received from remote: " + result);
-                } catch (IOException e) {
-                    e.printStackTrace();
                 }
 
             } catch (IOException e) {
@@ -1330,11 +1315,18 @@ public class Camera2BasicFragment extends Fragment
 
         Double remoteTime = Double.parseDouble(results[0])*1000;
 
-        long time = System.currentTimeMillis();
+        Mat mat;
 
-        Mat buf = new Mat(width, height, CvType.CV_8UC1);
-        buf.put(0,0, bytes);
-        Mat mat = Imgcodecs.imdecode(buf, Imgcodecs.IMREAD_COLOR);
+        if (nResolutionDivider > 25) {
+            /** We save then read back the image */
+            mat = ImageSaveThenRead(bytes);
+        } else {
+            Mat buf = new Mat(width, height, CvType.CV_8UC1);
+            buf.put(0,0, bytes);
+            mat = Imgcodecs.imdecode(buf, Imgcodecs.IMREAD_COLOR);
+        }
+
+        long time = System.currentTimeMillis();
 
         if (results.length>2) {
             ArrayList<org.opencv.core.Point> points = new ArrayList<>();

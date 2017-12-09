@@ -109,7 +109,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     private void imageResolutionSelected(AdapterView<?> parent, int pos) {
         String sResolution = parent.getItemAtPosition(pos).toString();
         switch(sResolution){
-            case "12":
+            case "12.2":
                 nResolutionDivider = 1.0;
                 MIN_MATCH_COUNT = 300;
                 break;
@@ -176,6 +176,74 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             case "0.085":
                 nResolutionDivider = 12.0;
                 MIN_MATCH_COUNT = 30;
+                break;
+            case "0.072":
+                nResolutionDivider = 13.0;
+                MIN_MATCH_COUNT = 30;
+                break;
+            case "0.062":
+                nResolutionDivider = 14.0;
+                MIN_MATCH_COUNT = 30;
+                break;
+            case "0.054":
+                nResolutionDivider = 15.0;
+                MIN_MATCH_COUNT = 20;
+                break;
+            case "0.042":
+                nResolutionDivider = 17.0;
+                MIN_MATCH_COUNT = 20;
+                break;
+            case "0.03":
+                nResolutionDivider = 20.0;
+                MIN_MATCH_COUNT = 20;
+                break;
+            case "0.021":
+                nResolutionDivider = 24.0;
+                MIN_MATCH_COUNT = 20;
+                break;
+            case "0.014":
+                nResolutionDivider = 29.0;
+                MIN_MATCH_COUNT = 20;
+                break;
+            case "0.009":
+                nResolutionDivider = 36.0;
+                MIN_MATCH_COUNT = 10;
+                break;
+            case "0.007":
+                nResolutionDivider = 43.0;
+                MIN_MATCH_COUNT = 10;
+                break;
+            case "0.005":
+                nResolutionDivider = 51.0;
+                MIN_MATCH_COUNT = 10;
+                break;
+            case "0.003":
+                nResolutionDivider = 60.0;
+                MIN_MATCH_COUNT = 10;
+                break;
+            case "0.0025":
+                nResolutionDivider = 70.0;
+                MIN_MATCH_COUNT = 10;
+                break;
+            case "0.0019":
+                nResolutionDivider = 81.0;
+                MIN_MATCH_COUNT = 10;
+                break;
+            case "0.0014":
+                nResolutionDivider = 93.0;
+                MIN_MATCH_COUNT = 10;
+                break;
+            case "0.0011":
+                nResolutionDivider = 106.0;
+                MIN_MATCH_COUNT = 10;
+                break;
+            case "0.0008":
+                nResolutionDivider = 122.0;
+                MIN_MATCH_COUNT = 10;
+                break;
+            case "0.0006":
+                nResolutionDivider = 137.0;
+                MIN_MATCH_COUNT = 10;
                 break;
             default:
                 nResolutionDivider = 8.0;

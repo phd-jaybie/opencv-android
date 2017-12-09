@@ -33,21 +33,40 @@
     </string-array>
     <string name="choose_image_size">Image resolution</string>
     <string-array name="image_size_array">
-        <item>4.8</item>
-        <item>3</item>
-        <item>2.1</item>
-        <item>1.5</item>
-        <item>1.2</item>
-        <item>1</item>
-        <item>0.8</item>
-        <item>0.5</item>
-        <item>0.3</item>
-        <item>0.25</item>
-        <item>0.2</item>
-        <item>0.151</item>
-        <item>0.122</item>
-        <item>0.101</item>
+        <item>0.0006</item>
+        <item>0.0008</item>
+        <item>0.0011</item>
+        <item>0.0014</item>
+        <item>0.0019</item>
+        <item>0.0025</item>
+        <item>0.003</item>
+        <item>0.005</item>
+        <item>0.007</item>
+        <item>0.009</item>
+        <item>0.014</item>
+        <item>0.021</item>
+        <item>0.03</item>
+        <item>0.042</item>
+        <item>0.054</item>
+        <item>0.062</item>
+        <item>0.072</item>
         <item>0.085</item>
+        <item>0.101</item>
+        <item>0.122</item>
+        <item>0.151</item>
+        <item>0.2</item>
+        <item>0.25</item>
+        <item>0.3</item>
+        <item>0.5</item>
+        <item>0.8</item>
+        <item>1</item>
+        <item>1.2</item>
+        <item>1.5</item>
+        <item>2.1</item>
+        <item>3</item>
+        <item>4.8</item>
+        <item>8.5</item>
+        <item>12.2</item>
     </string-array>
 
 </resources>
