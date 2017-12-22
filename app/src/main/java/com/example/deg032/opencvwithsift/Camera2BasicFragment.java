@@ -89,6 +89,7 @@ import java.util.concurrent.TimeUnit;
 import javax.net.ssl.HttpsURLConnection;
 
 import static com.example.deg032.opencvwithsift.MainActivity.MIN_MATCH_COUNT;
+import static com.example.deg032.opencvwithsift.MainActivity.edgeURL;
 import static com.example.deg032.opencvwithsift.MainActivity.mRefDescriptors;
 import static com.example.deg032.opencvwithsift.MainActivity.mRefKeyPoints;
 import static com.example.deg032.opencvwithsift.MainActivity.nResolutionDivider;
@@ -284,7 +285,8 @@ public class Camera2BasicFragment extends Fragment
                     mBackgroundHandler.post(new ImageProcessor(bytes, image.getHeight(), image.getWidth()));
                     break;
                 case 2:
-                    mUrlString = "http://192.168.43.98:8081";
+                    //mUrlString = "http://" + edgeURL + ":8081";
+                    mUrlString = "http://" + "192.168.43.98" + ":8081";
                     mBackgroundHandler.post(new ImageUploader(bytes, mUrlString, image.getHeight(), image.getWidth()));
                     break;
                 case 3:
@@ -562,6 +564,7 @@ public class Camera2BasicFragment extends Fragment
                     continue;
                 }
 
+                /** Limits the resolution to a ceiling for IN-app mode to avoid errors. */
                 if (nResolutionDivider < 2.0 && operatingMode == 1) {
                     nResolutionDivider = 2.0;
                 }
@@ -1000,8 +1003,6 @@ public class Camera2BasicFragment extends Fragment
             }
         }
 
-        long time1 = System.currentTimeMillis();
-
         if (good_matches.size()>MIN_MATCH_COUNT){
             /** get keypoint coordinates of good matches to find homography and remove outliers using ransac */
             List<org.opencv.core.Point> refPoints = new ArrayList<>();
@@ -1028,6 +1029,8 @@ public class Camera2BasicFragment extends Fragment
             // the smaller the allowed reprojection error (here 15), the more matches are filtered
             Mat Homog = Calib3d.findHomography(rPtsMat, mPtsMat, Calib3d.RANSAC, 5);
             Core.perspectiveTransform(obj_corners,scene_corners,Homog);
+
+            long time1 = System.currentTimeMillis();
 
             ArrayList<org.opencv.core.Point> points = new ArrayList<>();
             MatOfPoint sceneCorners = new MatOfPoint();
@@ -1116,6 +1119,18 @@ public class Camera2BasicFragment extends Fragment
         @Override
         public void run() {
 
+            /** Comparing Requested dimensions to actual dimensions
+            Mat mat;
+
+            Mat buf = new Mat(mWidth, mHeight, CvType.CV_8UC1);
+            buf.put(0,0, mBytes);
+            mat = Imgcodecs.imdecode(buf, Imgcodecs.IMREAD_COLOR);
+
+            Log.d(TAG, "Requested " + Integer.toString(mHeight) + " " + Integer.toString(mWidth)
+                    + "Actual " + Integer.toString(mat.height()) + " " + Integer.toString(mat.width()));
+             **/
+
+
             Mat mat;
 
             if (nResolutionDivider > 25) {
@@ -1148,14 +1163,14 @@ public class Camera2BasicFragment extends Fragment
             } catch (Exception e) {
                 e.printStackTrace();
                 Log.d(TAG, "Cannot process.");
-            } /**finally
-            } */
+            }
 
             if (0 != mKeyPoints.toArray().length) {
                 ImageMatcher(mat,mKeyPoints, mDescriptors);
             } else {
                 Log.d(TAG, "Cannot process: No key points");
             }
+
         }
 
     }
@@ -1227,16 +1242,21 @@ public class Camera2BasicFragment extends Fragment
 
         private final int mWidth;
 
+        //private final long time;
+
         ImageUploader(byte[] bytes, String url, int height, int width) {
             mBytes = bytes;
             mUrlString = url;
             mHeight = height;
             mWidth = width;
+            //time = System.currentTimeMillis();
         }
 
         /** Saving the image */
         @Override
         public void run() {
+
+            long time = System.currentTimeMillis();
 
             //Log.d(TAG, "Height: " + Integer.toString(mHeight)
             //        + ", Width: " + Integer.toString(mWidth));
@@ -1246,8 +1266,6 @@ public class Camera2BasicFragment extends Fragment
             HttpURLConnection urlConnection = null;
             String[] result = null;
             InputStream inputBuff = null;
-
-            long time = System.currentTimeMillis();
 
             try {
 
@@ -1263,7 +1281,7 @@ public class Camera2BasicFragment extends Fragment
                 urlConnection.setRequestProperty("Content-type", "image/jpeg");;
                 urlConnection.addRequestProperty("Content-length", mBytes.length +"");
 
-                urlConnection.connect();
+                //urlConnection.connect();
 
                 OutputStream outputBuff = new BufferedOutputStream(urlConnection.getOutputStream());
 

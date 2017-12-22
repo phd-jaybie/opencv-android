@@ -7,6 +7,15 @@
     android:layout_height="fill_parent"
     tools:context="com.example.deg032.opencvwithsift.MainActivity">
 
+
+    <EditText
+        android:id="@+id/internet_address_Text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ems="10"
+        android:inputType="textUri"
+        android:text="Enter I.P. address of Edge server." />
+
     <LinearLayout
         android:id="@+id/result_container"
         android:layout_width="fill_parent"

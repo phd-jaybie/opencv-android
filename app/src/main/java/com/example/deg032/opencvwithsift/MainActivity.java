@@ -10,6 +10,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.Toast;
 
@@ -62,7 +63,11 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     public static Mat mRefDescriptors;
 
+    public static String edgeURL = "192.168.43.98";
+
     private Camera2BasicFragment mCameraFragment;
+
+    private EditText edgeIP;
 
     static {
         if(!OpenCVLoader.initDebug()){
@@ -83,6 +88,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
         Spinner modeSpinner = findViewById(R.id.mode_spinner);
         modeSpinner.setOnItemSelectedListener(this);
+
+        edgeIP = findViewById(R.id.internet_address_Text);
 
         // Create an ArrayAdapter using the string array and a default spinner layout
         ArrayAdapter<CharSequence> resolutionAdapter = ArrayAdapter.createFromResource(this,
@@ -112,6 +119,10 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             case "12.2":
                 nResolutionDivider = 1.0;
                 MIN_MATCH_COUNT = 300;
+                break;
+            case "10.1":
+                nResolutionDivider = 1.1;
+                MIN_MATCH_COUNT = 280;
                 break;
             case "8.5":
                 nResolutionDivider = 1.2;
@@ -261,6 +272,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                 operatingMode = INAPP;
                 break;
             case "Edge":
+                edgeURL = edgeIP.getText().toString();
                 operatingMode = EDGE;
                 break;
             case "Cloud":
